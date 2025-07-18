@@ -4,8 +4,8 @@ MCP Bridge CLI
 """
 
 import typer
-from typing import Optional
-from pathlib import Path
+
+from .commands import mcpserver
 
 app = typer.Typer(
     name="mcpbridge",
@@ -13,17 +13,12 @@ app = typer.Typer(
     add_completion=False,
 )
 
-@app.command()
-def mcpserver(
-    path: str = typer.Option("localhost", "--path", "-p", help="Path to the MCP server"),
-):
-    """Start the MCP server"""
-    typer.echo(f"MCP server path is {path}")
+app.add_typer(mcpserver.app, name="mcpserver")
 
 
 @app.command()
 def version():
-    """Show version information"""
+    """Show version information."""
     typer.echo("mcpbridge version 0.1.0")
     typer.echo("MCP Bridge - A lightweight MCP host")
 

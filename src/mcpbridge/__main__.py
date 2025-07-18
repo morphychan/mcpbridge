@@ -3,7 +3,7 @@
 Entry point for python -m mcpbridge
 """
 
-from mcpbridge.cli.main import app
+from mcpbridge.cli.cli import app
 
 if __name__ == "__main__":
     app() 
