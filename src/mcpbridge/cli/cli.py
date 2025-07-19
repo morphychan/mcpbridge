@@ -16,6 +16,18 @@ app = typer.Typer(
 app.add_typer(mcpserver.app, name="mcpserver")
 
 
+@app.callback()
+def main(
+    prompt: str = typer.Option(
+        None,
+        "--prompt",
+        help="Prompt string for the language model"
+    )
+):
+    """Main entry point for the MCP Bridge CLI."""
+    typer.echo(f"Prompt: {prompt}")
+
+
 @app.command()
 def version():
     """Show version information."""

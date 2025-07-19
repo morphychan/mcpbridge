@@ -2,6 +2,8 @@
 MCP Server Commands
 """
 
+import asyncio
+from mcpbridge.client.stdio import run_stdio
 import typer
 from pathlib import Path
 
@@ -66,7 +68,4 @@ def stdio(
     
     # Display the command that will be executed
     typer.echo(f"Running `{command}` on MCP server at {path}")
-    
-    # TODO: Execute the actual command to start the MCP server
-    # This should use subprocess to run the command with the server file
-    # subprocess.run([command, str(path)], check=True)
+    asyncio.run(run_stdio(command, [str(path)]))
