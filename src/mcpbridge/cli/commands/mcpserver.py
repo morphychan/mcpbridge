@@ -1,13 +1,20 @@
 """
-MCP Server Commands
+MCP Server Command Module
+
+This module provides command-line interfaces for managing Model Context Protocol
+(MCP) servers. It includes functionality for starting MCP servers using different
+transport mechanisms, with stdio transport being the primary supported method.
+
+The module implements a hierarchical command structure:
+- mcpserver: Top-level server management commands
+  - stdio: Start MCP server using stdio transport
 """
 
-import asyncio
-from mcpbridge.client.stdio import run_stdio
+from mcpbridge.core.context import Command, Context as MCPContext
 import typer
 from pathlib import Path
 
-app = typer.Typer(
+mcpserv_app = typer.Typer(
     name="mcpserver",
     help="MCP server related commands",
     add_completion=False,
@@ -19,11 +26,46 @@ stdio_app = typer.Typer(
     add_completion=False,
     invoke_without_command=True,
 )
-app.add_typer(stdio_app, name="stdio")
+mcpserv_app.add_typer(stdio_app, name="stdio")
+
+
+@mcpserv_app.callback(invoke_without_command=True)
+def mcpserv(ctx: typer.Context):
+    """
+    Handle MCP server command group initialization.
+    
+    This callback function is invoked when the 'mcpserver' command is called.
+    It extends the command chain context by adding the mcpserver command to
+    the execution path, allowing subcommands to access the full command hierarchy.
+    
+    Args:
+        ctx (typer.Context): The Typer context object containing the shared
+            MCP context from the parent command.
+            
+    Raises:
+        AttributeError: If ctx.obj is None or doesn't contain a valid MCP context.
+        
+    Note:
+        This function modifies the command chain in place by adding the
+        mcpserver command as a nested command to the current tail command.
+        
+    Example:
+        mcpbridge mcpserver stdio  # This function is called for 'mcpserver'
+    """
+    if ctx.obj is None:
+        raise AttributeError("MCP context not found. Ensure the main command was executed properly.")
+    
+    if not isinstance(ctx.obj, MCPContext):
+        raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
+    
+    mcp_ctx: MCPContext = ctx.obj
+    mcpserv_cmd = Command(cmd="mcpserver")
+    mcp_ctx.get_command().set_nested_command(mcpserv_cmd)
 
 
 @stdio_app.callback(invoke_without_command=True)
 def stdio(
+    ctx: typer.Context,
     command: str = typer.Option(
         "python", "--command", "-c", help="Command to run"
     ),
@@ -32,40 +74,54 @@ def stdio(
     ),
 ):
     """
-    Start the MCP (Model Context Protocol) server over stdio transport.
+    Start an MCP server using stdio transport.
     
-    This function launches an MCP server using the specified command and server file.
-    The server communicates via standard input/output streams, which is the most
-    common transport method for MCP servers.
+    This function configures and starts a Model Context Protocol (MCP) server
+    that communicates via standard input/output streams. It extends the command
+    chain context and prepares the execution environment for the MCP server.
+    
+    The stdio transport is the most common method for MCP server communication,
+    where the server receives JSON-RPC messages through stdin and sends responses
+    through stdout.
     
     Args:
-        command (str): The command to execute the MCP server (default: "python").
-                      This should be the interpreter or executable that can run
-                      the server file.
-        path (Path): Path to the MCP server script file (default: "server.py").
-                    This file should contain the MCP server implementation.
-    
+        ctx (typer.Context): The Typer context object containing the shared
+            MCP context from parent commands.
+        command (str, optional): The command/interpreter to execute the MCP server.
+            Common values include "python", "python3", "node", etc. 
+            Defaults to "python".
+        path (Path, optional): Path to the MCP server script file that implements
+            the MCP protocol. Defaults to "server.py" in the current directory.
+            
     Raises:
-        typer.Exit: Exits with code 1 if the server file doesn't exist or
-                   is not a valid file.
-    
-    Examples:
-        # Run with default python command and server.py
-        mcpbridge mcpserver stdio
+        AttributeError: If ctx.obj is None or doesn't contain a valid MCP context.
+        typer.Exit: If the server file validation fails (when implemented).
         
-        # Run with custom command and path
-        mcpbridge mcpserver stdio --command "python3" --path "/path/to/my_server.py"
+    Example:
+        # Start server with custom interpreter and path
+        mcpbridge mcpserver stdio --command python3 --path /path/to/server.py
     """
+    if ctx.obj is None:
+        raise AttributeError("MCP context not found. Ensure the main command was executed properly.")
+    
+    if not isinstance(ctx.obj, MCPContext):
+        raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
+    
+    mcp_ctx: MCPContext = ctx.obj
+    tail_cmd = mcp_ctx.get_tail_command()
+    stdio_cmd = Command(cmd="stdio", options={"command": command, "path": path})
+    tail_cmd.set_nested_command(stdio_cmd)
+
     # Validate that the server file exists before attempting to run it
-    if not path.exists():
-        typer.echo(f"Error: Server file '{path}' not found", err=True)
-        raise typer.Exit(1)
+    # if not path.exists():
+    #     typer.echo(f"Error: Server file '{path}' not found", err=True)
+    #     raise typer.Exit(1)
     
     # Ensure the path points to a file, not a directory
-    if not path.is_file():
-        typer.echo(f"Error: '{path}' is not a file", err=True)
-        raise typer.Exit(1)
+    # if not path.is_file():
+    #     typer.echo(f"Error: '{path}' is not a file", err=True)
+    #     raise typer.Exit(1)
     
     # Display the command that will be executed
-    typer.echo(f"Running `{command}` on MCP server at {path}")
-    asyncio.run(run_stdio(command, [str(path)]))
+    # typer.echo(f"Running `{command}` on MCP server at {path}")
+    # asyncio.run(run_stdio(command, [str(path)]))
