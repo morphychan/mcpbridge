@@ -113,7 +113,19 @@ class Command:
             bool: True if a nested command exists, False otherwise
         """
         return self.nested_command is not None
-    
+
+    def get_tail_command(self) -> Command:
+        """
+        Get the tail command in the chain.
+        
+        Returns:
+            Command: The tail command in the chain
+        """
+        last_cmd = self
+        while last_cmd.nested_command:
+            last_cmd = last_cmd.nested_command
+        return last_cmd
+
     def print_command_chain(self) -> None:
         """
         Print the entire command chain starting from this command.
