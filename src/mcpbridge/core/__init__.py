@@ -1,0 +1,1 @@
+# src/mcpbridge/core/__init__.py
