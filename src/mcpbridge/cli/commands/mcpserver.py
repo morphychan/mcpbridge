@@ -10,7 +10,7 @@ The module implements a hierarchical command structure:
   - stdio: Start MCP server using stdio transport
 """
 
-from mcpbridge.core.context import Command, Context as MCPContext
+from mcpbridge.core.context import Command, Context as MCPContext, ContextManager
 import typer
 from pathlib import Path
 
@@ -108,9 +108,12 @@ def stdio(
         raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
     
     mcp_ctx: MCPContext = ctx.obj
-    tail_cmd = mcp_ctx.get_tail_command()
+    tail_cmd = mcp_ctx.get_command().get_tail_command()
     stdio_cmd = Command(cmd="stdio", options={"command": command, "path": path})
     tail_cmd.set_nested_command(stdio_cmd)
+
+    manager = ContextManager(mcp_ctx)
+    manager.run()
 
     # Validate that the server file exists before attempting to run it
     # if not path.exists():
