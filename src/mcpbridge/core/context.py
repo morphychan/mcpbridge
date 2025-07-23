@@ -6,8 +6,9 @@ class ContextManager:
     def __init__(self, ctx: Context):
         self.ctx = ctx
 
+
     def run(self) -> None:
-        main_cmd = self.ctx.get_command()
+        main_cmd = self.ctx.get_root_command()
         leaf_cmd = main_cmd.get_tail_command()
 
         if leaf_cmd.cmd == "stdio":
@@ -15,6 +16,8 @@ class ContextManager:
 
     def _execute_stdio(self, cmd: Command) -> None:
         pass
+
+
 
 class Context:
     """
@@ -31,23 +34,37 @@ class Context:
         Args:
             command (Command): The command object to be held in this context
         """
-        self.command = command
+        self.root_cmd = command
+        self.prompt = self._get_prompt()
 
-    def get_command(self) -> Command:
+    def get_root_command(self) -> Command:
         """
         Get the command object from this context.
         
         Returns:
             Command: The command object stored in this context
         """
-        return self.command
+        return self.root_cmd
     
-    def set_command(self, command: Command) -> None:
+    def set_root_command(self, command: Command) -> None:
         """
         Set a new command object for this context.
         
         Args:
             command (Command): The new command object to store in this context
         """
-        self.command = command
+        self.root_cmd = command
 
+    def _get_prompt(self) -> str:
+        """
+        Get the prompt from the root command options.
+        
+        Returns:
+            str: The prompt string from the command options
+            
+        Raises:
+            ValueError: If the prompt is not set
+        """
+        if not self.root_cmd.options['prompt']:
+            raise ValueError("Prompt is not set in command options")
+        return self.root_cmd.options['prompt']

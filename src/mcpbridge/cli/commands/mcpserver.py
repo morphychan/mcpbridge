@@ -60,7 +60,7 @@ def mcpserv(ctx: typer.Context):
     
     mcp_ctx: MCPContext = ctx.obj
     mcpserv_cmd = Command(cmd="mcpserver")
-    mcp_ctx.get_command().set_nested_command(mcpserv_cmd)
+    mcp_ctx.get_root_command().set_nested_command(mcpserv_cmd)
 
 
 @stdio_app.callback(invoke_without_command=True)
@@ -108,7 +108,7 @@ def stdio(
         raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
     
     mcp_ctx: MCPContext = ctx.obj
-    tail_cmd = mcp_ctx.get_command().get_tail_command()
+    tail_cmd = mcp_ctx.get_root_command().get_tail_command()
     stdio_cmd = Command(cmd="stdio", options={"command": command, "path": path})
     tail_cmd.set_nested_command(stdio_cmd)
 
