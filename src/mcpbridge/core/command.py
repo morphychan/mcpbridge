@@ -78,6 +78,28 @@ class Command:
         """
         return self.nested_command is not None
 
+    def get_n_level_command(self, n: int) -> 'Command':
+        """
+        Get the n-level command in the chain.
+
+        Args:
+            n (int): The level of the command to get, 
+            starting from 0 for the root command
+
+        Returns:
+            Command: The n-level command in the chain
+        """
+        curr_cmd = self
+        curr_lvl = 0
+        
+        for i in range(n):
+            if not curr_cmd.nested_command:
+                raise ValueError(f"Command {curr_cmd.cmd} has no nested command at level {curr_lvl}")
+            curr_cmd = curr_cmd.nested_command
+            curr_lvl += 1
+        
+        return curr_cmd
+
     def get_tail_command(self) -> 'Command':
         """
         Get the tail command in the chain.
