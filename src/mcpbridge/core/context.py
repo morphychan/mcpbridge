@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 
 from mcpbridge.core.command import Command
 from mcpbridge.core.session import Session
@@ -38,7 +39,7 @@ class ContextManager:
         ctx_parser = ContextParser(self.ctx)
         ctx_parser.parse()
         session = Session(self.ctx)
-        session.start()
+        asyncio.run(session.start())
 
 
 class ContextParser:
@@ -126,7 +127,7 @@ class ContextParser:
         """
         second_level_cmd = self.ctx.get_root_command().get_n_level_command(2)
         if second_level_cmd.get_cmd() == "stdio":
-            self.ctx.mcp_servers["stdio"] = {}
+            self.ctx.mcp_server["stdio"] = {}
             self._parse_stdio(second_level_cmd)
         else:
             raise ValueError(f"Expected 'stdio' command at second level, got {second_level_cmd.get_cmd()}")
@@ -155,7 +156,7 @@ class ContextParser:
         """
         if not stdio.options['command'] or not stdio.options['path']:
             raise ValueError("'command' or 'path' options are required for stdio")
-        self.ctx.mcp_servers["stdio"] = {
+        self.ctx.mcp_server["stdio"] = {
             "command": stdio.options['command'],
             "path": stdio.options['path']
         }
@@ -177,7 +178,7 @@ class Context:
         """
         self.root_cmd = command
         self.prompt = self._get_prompt()
-        self.mcp_servers = {}
+        self.mcp_server = {}
 
     def get_root_command(self) -> Command:
         """
@@ -213,7 +214,7 @@ class Context:
         Returns:
             str: A formatted string showing the context's current state
         """
-        return f"Context(root_cmd='{self.root_cmd.cmd}', prompt_len={len(self.prompt)}, mcp_servers={self.mcp_servers})"
+        return f"Context(root_cmd='{self.root_cmd.cmd}', prompt_len={len(self.prompt)}, mcp_server={self.mcp_server})"
 
     def _get_prompt(self) -> str:
         """
