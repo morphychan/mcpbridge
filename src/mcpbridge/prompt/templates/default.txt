@@ -1,0 +1,13 @@
+{{
+  "messages": [
+    {{
+      "role": "system",
+      "content": "You are an AI assistant with access to the provided tools. Use them to help answer user questions and complete tasks effectively. When using tools, explain your reasoning and provide clear, helpful responses based on the results."
+    }},
+    {{
+      "role": "user",
+      "content": "{user_prompt}"
+    }}
+  ],
+  "tools": {tools_info}
+}}

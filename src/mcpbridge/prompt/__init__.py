@@ -1,0 +1,1 @@
+# src/mcpbridge/prompt/__init__.py

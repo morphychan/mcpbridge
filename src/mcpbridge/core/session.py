@@ -12,6 +12,7 @@ import json
 from typing import TYPE_CHECKING
 
 from mcpbridge.client.stdio import StdioClient
+from mcpbridge.prompt.builder import PromptBuilder
 
 if TYPE_CHECKING:
     from mcpbridge.core.context import Context
@@ -65,10 +66,14 @@ class Session:
         )
         
         # Retrieve available tools from the MCP server
-        tools_info = await stdio_client.get_tools()
+        tools_spec = await stdio_client.get_tools()
         
-        # Optional tool information display (currently disabled)
-        # These lines can be uncommented for debugging or verbose output
-        # tool_names = [tool['name'] for tool in tools_info['tools']]
-        # print(f"Available tools: {tool_names}")
-        # print(json.dumps(tools_info['tools'], indent=2, ensure_ascii=False))
+        # Build initial prompt with tools specification
+        prompt_builder = PromptBuilder(template_name="default")
+        initial_prompt = prompt_builder.build_initial_prompt(
+            user_prompt=self.ctx.prompt,
+            tools_info=tools_spec
+        )
+        
+        # Log the initial prompt
+        print(f"Initial prompt: {initial_prompt}")
