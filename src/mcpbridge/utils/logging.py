@@ -7,6 +7,8 @@ All modules should use this centralized logging system to maintain consistency.
 
 import json
 import logging
+import logging.handlers
+from pathlib import Path
 from typing import Dict, List, Union
 
 
@@ -31,16 +33,38 @@ def get_mcpbridge_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     
-    # Add console handler if not already present
+    # Add handlers if not already present
     if not logger.handlers:
-        handler = logging.StreamHandler()
-        # Use standard MCP Bridge format: [MM/DD/YY HH:MM:SS] LEVEL - message
+        # Create formatter
         formatter = logging.Formatter(
             '[%(asctime)s] %(levelname)-8s - %(message)s', 
             datefmt='%m/%d/%y %H:%M:%S'
         )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        # Add file handler with rotation
+        try:
+            # Ensure logs directory exists
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            
+            # Create rotating file handler (10MB max, keep 5 backup files)
+            file_handler = logging.handlers.RotatingFileHandler(
+                "logs/mcpbridge.log",
+                maxBytes=10 * 1024 * 1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
+        except (PermissionError, OSError):
+            # If file logging fails, continue with console only
+            pass
     
     return logger
 
