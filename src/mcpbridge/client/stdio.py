@@ -6,23 +6,14 @@ servers over standard input/output streams.
 """
 
 import json
-import logging
 from typing import Dict, Any, List
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 
-# Configure module-level logger with DEBUG level and console output
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
-# Add console handler if not already present
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    # Use format similar to server: [MM/DD/YY HH:MM:SS] LEVEL - message
-    formatter = logging.Formatter('[%(asctime)s] %(levelname)-8s - %(message)s', 
-                                datefmt='%m/%d/%y %H:%M:%S')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+# Get configured logger for this module
+logger = get_mcpbridge_logger(__name__)
 
 
 class StdioClient:
@@ -95,7 +86,7 @@ class StdioClient:
                 # Log tools information
                 tool_names = [tool['name'] for tool in tools_spec]
                 self.logger.info(f"Retrieved {len(tools_spec)} tools: {tool_names}")
-                self.logger.debug(f"Full tools specification: {json.dumps(tools_spec, indent=2, ensure_ascii=False)}")
+                log_json(self.logger, tools_spec, "Tools specification")
                 
                 # Return tools array directly
                 return tools_spec

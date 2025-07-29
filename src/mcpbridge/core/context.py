@@ -3,6 +3,10 @@ import asyncio
 
 from mcpbridge.core.command import Command
 from mcpbridge.core.session import Session
+from mcpbridge.utils.logging import get_mcpbridge_logger
+
+# Get configured logger for this module
+logger = get_mcpbridge_logger(__name__)
 
 class ContextManager:
     """
@@ -89,7 +93,8 @@ class ContextParser:
             ValueError: If the command structure is invalid or incomplete
         """
         self._parse_first_level_command()
-        print(f"finished parsing context: {self.ctx}")
+        logger.info(f"Context parsing completed successfully: {self.ctx}")
+        logger.debug(f"Parsed MCP server configuration: {self.ctx.mcp_server}")
 
     def _parse_first_level_command(self) -> None:
         """
@@ -202,7 +207,8 @@ class Context:
         """
         Print the prompt to the console.
         """
-        print(f"user prompt: {self.prompt}")
+        logger.info(f"User prompt: {self.prompt}")
+        logger.debug(f"Prompt length: {len(self.prompt)} characters")
 
     def __str__(self) -> str:
         """

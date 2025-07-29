@@ -8,14 +8,17 @@ handling the lifecycle of MCP server connections and tool interactions.
 from __future__ import annotations
 
 import uuid
-import json
 from typing import TYPE_CHECKING
 
 from mcpbridge.client.stdio import StdioClient
 from mcpbridge.prompt.builder import PromptBuilder
+from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
 if TYPE_CHECKING:
     from mcpbridge.core.context import Context
+
+# Get configured logger for this module
+logger = get_mcpbridge_logger(__name__)
 
 
 class Session:
@@ -57,7 +60,8 @@ class Session:
                       initialization encounters an error
         """
         # Log session startup with unique identifier
-        print(f"starting session {self.id}")
+        logger.info(f"Starting session {self.id}")
+        logger.debug(f"Session context: {self.ctx}")
         
         # Create StdIO client with server configuration from context
         stdio_client = StdioClient(
@@ -75,5 +79,6 @@ class Session:
             tools_info=tools_spec
         )
         
-        # Log the initial prompt
-        print(f"Initial prompt: {initial_prompt}")
+        # Log the initial prompt with JSON formatting
+        logger.info("Initial prompt generated successfully")
+        log_json(logger, initial_prompt, "Full initial prompt")
