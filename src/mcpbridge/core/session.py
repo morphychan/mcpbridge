@@ -2,7 +2,9 @@
 MCP Bridge Session Management Module.
 
 This module provides session management functionality for MCP Bridge,
-handling the lifecycle of MCP server connections and tool interactions.
+handling the complete lifecycle of bridging MCP servers with LLM services.
+This includes MCP server connections, tool discovery, prompt building,
+LLM interactions, and response handling.
 """
 
 from __future__ import annotations
@@ -11,6 +13,9 @@ import uuid
 from typing import TYPE_CHECKING
 
 from mcpbridge.client.stdio import StdioClient
+from mcpbridge.llm.client import OpenAIClient
+from mcpbridge.llm.config import LLMConfig
+from mcpbridge.llm.exceptions import LLMConfigurationError, LLMError
 from mcpbridge.prompt.builder import PromptBuilder
 from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
@@ -23,11 +28,17 @@ logger = get_mcpbridge_logger(__name__)
 
 class Session:
     """
-    Manages a session for communicating with MCP servers.
+    Manages a session for MCP Bridge operations.
     
-    A session represents a single interaction lifecycle with an MCP server,
-    including connection establishment, tool discovery, and communication.
-    Each session has a unique identifier for tracking and debugging purposes.
+    A session represents a complete interaction lifecycle that bridges MCP servers
+    with LLM services. This includes:
+    - MCP server connection and tool discovery
+    - Prompt building with available tools
+    - LLM interaction with the constructed prompt
+    - Response handling and session cleanup
+    
+    Each session has a unique identifier for tracking and debugging purposes
+    across both MCP and LLM interactions.
     """
     
     def __init__(self, ctx: Context) -> None:
@@ -46,18 +57,22 @@ class Session:
         """
         Start the MCP session and establish connection with the server.
         
-        This method:
+        This method performs the complete MCP Bridge workflow:
         1. Initializes the session
         2. Creates a StdIO client connection to the MCP server
         3. Retrieves available tools from the server
-        4. Optionally displays tool information (currently commented out)
+        4. Builds the initial prompt with tools information
+        5. Sends the prompt to the LLM service for processing
+        6. Handles LLM response and cleanup
         
-        The method sets up the communication channel and performs initial
-        handshake with the MCP server to discover available capabilities.
+        The method integrates MCP server capabilities with LLM interactions,
+        providing a complete bridge between the two systems. LLM configuration
+        is loaded from environment variables and errors are handled gracefully.
         
         Raises:
             Exception: If connection to the MCP server fails or session 
-                      initialization encounters an error
+                      initialization encounters an error. LLM errors are 
+                      caught and logged but do not interrupt the session.
         """
         # Log session startup with unique identifier
         logger.info(f"Starting session {self.id}")
@@ -82,3 +97,39 @@ class Session:
         # Log the initial prompt with JSON formatting
         logger.info("Initial prompt generated successfully")
         log_json(logger, initial_prompt, "Full initial prompt")
+        
+        # Initialize and use LLM client
+        try:
+            # Create LLM configuration from environment variables
+            llm_config = LLMConfig()
+            logger.info(f"Session {self.id}: LLM configuration loaded successfully")
+            
+            # Create LLM client with session ID for tracking
+            llm_client = OpenAIClient(llm_config, session_id=self.id)
+            
+            # Send chat completion request with initial prompt and tools
+            logger.info(f"Session {self.id}: Sending request to LLM")
+            llm_response = await llm_client.chat_completion(
+                messages=initial_prompt["messages"]
+            )
+            
+            # Log successful LLM response
+            logger.info(f"Session {self.id}: LLM response received successfully")
+            log_json(logger, llm_response, "LLM Response")
+            
+            # Close LLM client session
+            await llm_client.close()
+            
+        except LLMConfigurationError as e:
+            logger.warning(f"Session {self.id}: LLM configuration error: {e}")
+            logger.warning(f"Session {self.id}: Continuing without LLM interaction")
+            
+        except LLMError as e:
+            logger.error(f"Session {self.id}: LLM interaction failed: {e}")
+            logger.warning(f"Session {self.id}: Continuing despite LLM error")
+            
+        except Exception as e:
+            logger.error(f"Session {self.id}: Unexpected error during LLM interaction: {e}")
+            logger.warning(f"Session {self.id}: Continuing despite unexpected error")
+        
+        logger.info(f"Session {self.id}: Session completed")
