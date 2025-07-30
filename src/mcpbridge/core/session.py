@@ -16,7 +16,7 @@ from mcpbridge.client.stdio import StdioClient
 from mcpbridge.llm.openai.client import OpenAIClient
 from mcpbridge.llm.config import LLMConfig
 from mcpbridge.llm.exceptions import LLMConfigurationError, LLMError
-from mcpbridge.llm.openai.parser import LLMResponseParser
+from mcpbridge.llm.openai.parser import OpenAIParser
 from mcpbridge.prompt.builder import PromptBuilder
 from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
@@ -138,14 +138,15 @@ class Session:
                     tools=initial_prompt["tools"]
                 )
                 
-                # Parse LLM response
-                llm_response_parser = LLMResponseParser()
-                llm_response_parser.parse(llm_response)
-                
-                # Log successful LLM response
+               # Log successful LLM response
                 logger.info(f"Session {self.id}: LLM response received successfully")
-                log_json(logger, llm_response, "LLM Response")
-                
+                # log_json(logger, llm_response, "LLM Response")
+
+                # Parse LLM response
+                llm_response_parser = OpenAIParser()
+                llm_response_parser.parse(llm_response)
+ 
+
             finally:
                 # Close LLM client session
                 await llm_client.close()
