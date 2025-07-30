@@ -10,7 +10,7 @@ LLM interactions, and response handling.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict, Any
 
 from mcpbridge.client.stdio import StdioClient
 from mcpbridge.llm.openai.client import OpenAIClient
@@ -89,7 +89,7 @@ class Session:
             # Use async context manager if available, otherwise handle cleanup manually
             try:
                 # Retrieve available tools from the MCP server
-                tools_spec = await stdio_client.get_tools()
+                tools_info = await stdio_client.get_tools()
             finally:
                 # Ensure stdio_client is properly closed
                 if hasattr(stdio_client, 'close'):
@@ -99,7 +99,7 @@ class Session:
             prompt_builder = PromptBuilder(template_name="default")
             initial_prompt = prompt_builder.build_initial_prompt(
                 user_prompt=self.ctx.prompt,
-                tools_info=tools_spec
+                tools_info=tools_info
             )
             
             # Log the initial prompt with JSON formatting
@@ -107,20 +107,31 @@ class Session:
             log_json(logger, initial_prompt, "Full initial prompt")
             
             # Initialize and use LLM client
-            await self._handle_llm_interaction(initial_prompt)
-            
+            llm_response = await self._handle_llm_interaction(initial_prompt)
+
+            # Parse LLM response
+            response_parser = OpenAIParser()
+            while response_parser.need_tools_call(llm_response):
+                tool_call =response_parser.prepare_tools_call(llm_response)
+                # Assume only one tool call is needed
+                tool_result = await stdio_client.call_tool(tool_call[0]["name"], tool_call[0]["arguments"])
+                break
+  
         except Exception as e:
             logger.error(f"Session {self.id}: Critical error during session: {e}")
             raise
         finally:
             logger.info(f"Session {self.id}: Session completed")
 
-    async def _handle_llm_interaction(self, initial_prompt: dict) -> None:
+    async def _handle_llm_interaction(self, initial_prompt: dict) -> Optional[Dict[str, Any]]:
         """
         Handle LLM interaction with proper error handling.
         
         Args:
             initial_prompt: The initial prompt to send to the LLM
+            
+        Returns:
+            Optional[Dict[str, Any]]: The LLM response if successful, None if error occurred
         """
         try:
             # Create LLM configuration from environment variables
@@ -142,10 +153,7 @@ class Session:
                 logger.info(f"Session {self.id}: LLM response received successfully")
                 # log_json(logger, llm_response, "LLM Response")
 
-                # Parse LLM response
-                llm_response_parser = OpenAIParser()
-                llm_response_parser.parse(llm_response)
- 
+                return llm_response
 
             finally:
                 # Close LLM client session
@@ -154,11 +162,15 @@ class Session:
         except LLMConfigurationError as e:
             logger.warning(f"Session {self.id}: LLM configuration error: {e}")
             logger.warning(f"Session {self.id}: Continuing without LLM interaction")
+            return None
             
         except LLMError as e:
             logger.error(f"Session {self.id}: LLM interaction failed: {e}")
             logger.warning(f"Session {self.id}: Continuing despite LLM error")
+            return None
             
         except Exception as e:
             logger.error(f"Session {self.id}: Unexpected error during LLM interaction: {e}")
             logger.warning(f"Session {self.id}: Continuing despite unexpected error")
+            return None
+

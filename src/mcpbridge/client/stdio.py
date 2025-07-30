@@ -90,4 +90,43 @@ class StdioClient:
                 
                 # Return tools array directly
                 return tools_spec
+
+    async def call_tool(self, tool_name: str, tool_args: dict) -> Dict[str, Any]:
+        """
+        Call a tool with the given name and arguments.
+        
+        Args:
+            tool_name (str): The name of the tool to call
+            tool_args (dict): The arguments to pass to the tool
+            
+        Returns:
+            Dict[str, Any]: The result from the tool execution
+            
+        Raises:
+            Exception: If connection to the MCP server fails or tool execution fails
+        """
+        # Log tool call attempt
+        self.logger.debug(f"Calling MCP tool: {tool_name} with args: {tool_args}")
+        
+        # Create server parameters for stdio connection
+        params = StdioServerParameters(
+            command=self.command,
+            args=self.args,
+        )
+
+        # Establish connection and create session
+        async with stdio_client(params) as (reader, writer):
+            async with ClientSession(reader, writer) as session:
+                # Initialize the MCP session
+                await session.initialize()
+                self.logger.debug("MCP session initialized for tool call")
+
+                # Call the tool with provided arguments
+                tool_result = await session.call_tool(tool_name, tool_args)
                 
+                # Log successful tool execution
+                self.logger.info(f"Tool '{tool_name}' executed successfully")
+                log_json(self.logger, tool_result.model_dump(by_alias=True), f"Tool '{tool_name}' result")
+                
+                # Return the tool result as dictionary
+                return tool_result.model_dump(by_alias=True)

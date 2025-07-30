@@ -20,8 +20,8 @@ class OpenAIParser:
             dict: The parsed response (currently just returns the input)
         """
         logger.info("Starting LLM response parsing...")
-        if self.need_tools_call(response):
-            self.prepare_tools_call(response)
+        # if self.need_tools_call(response):
+        #     self.prepare_tools_call(response)
     
     def need_tools_call(self, response: dict) -> bool:
         """
