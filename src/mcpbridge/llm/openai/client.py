@@ -89,9 +89,38 @@ class OpenAIClient:
             await self.session.close()
             logger.debug(f"Session {self.session_id}: Closed HTTP session")
     
+    def _convert_mcp_tools_to_openai(self, mcp_tools: List[Dict]) -> List[Dict]:
+        """
+        Convert MCP tools format to OpenAI tools format.
+        
+        Args:
+            mcp_tools (List[Dict]): Tools in MCP format
+            
+        Returns:
+            List[Dict]: Tools in OpenAI format
+        """
+        if not mcp_tools:
+            return []
+            
+        openai_tools = []
+        for tool in mcp_tools:
+            openai_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "parameters": tool["inputSchema"]
+                }
+            }
+            openai_tools.append(openai_tool)
+            
+        logger.debug(f"Session {self.session_id}: Converted {len(mcp_tools)} MCP tools to OpenAI format")
+        return openai_tools
+    
     async def chat_completion(
         self, 
-        messages: str, 
+        messages: str,
+        tools: str = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -102,6 +131,7 @@ class OpenAIClient:
         
         Args:
             messages (str): The user message content to send to the LLM
+            tools (str): The tools to use for the LLM
             model (Optional[str]): Model to use (overrides config default)
             temperature (Optional[float]): Temperature parameter (overrides config default)
             max_tokens (Optional[int]): Maximum tokens (overrides config default)
@@ -120,6 +150,11 @@ class OpenAIClient:
         """
         await self._ensure_session()
         
+        # Convert MCP tools to OpenAI format if provided
+        openai_tools = None
+        if tools:
+            openai_tools = self._convert_mcp_tools_to_openai(tools)
+        
         # Build request payload
         request_data = {
             "model": model or self.config.model,
@@ -127,6 +162,10 @@ class OpenAIClient:
             "temperature": temperature if temperature is not None else self.config.temperature,
             "max_tokens": max_tokens if max_tokens is not None else self.config.max_tokens,
         }
+        
+        # Add tools only if provided
+        if openai_tools:
+            request_data["tools"] = openai_tools
         
         # Add any additional parameters
         request_data.update(kwargs)

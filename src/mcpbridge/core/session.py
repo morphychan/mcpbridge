@@ -13,9 +13,10 @@ import uuid
 from typing import TYPE_CHECKING
 
 from mcpbridge.client.stdio import StdioClient
-from mcpbridge.llm.client import OpenAIClient
+from mcpbridge.llm.openai.client import OpenAIClient
 from mcpbridge.llm.config import LLMConfig
 from mcpbridge.llm.exceptions import LLMConfigurationError, LLMError
+from mcpbridge.llm.openai.parser import LLMResponseParser
 from mcpbridge.prompt.builder import PromptBuilder
 from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
@@ -78,27 +79,49 @@ class Session:
         logger.info(f"Starting session {self.id}")
         logger.debug(f"Session context: {self.ctx}")
         
-        # Create StdIO client with server configuration from context
-        stdio_client = StdioClient(
-            self.ctx.mcp_server['stdio']['command'], 
-            [str(self.ctx.mcp_server['stdio']['path'])]
-        )
+        try:
+            # Create StdIO client with server configuration from context
+            stdio_client = StdioClient(
+                self.ctx.mcp_server['stdio']['command'], 
+                [str(self.ctx.mcp_server['stdio']['path'])]
+            )
+            
+            # Use async context manager if available, otherwise handle cleanup manually
+            try:
+                # Retrieve available tools from the MCP server
+                tools_spec = await stdio_client.get_tools()
+            finally:
+                # Ensure stdio_client is properly closed
+                if hasattr(stdio_client, 'close'):
+                    await stdio_client.close()
+            
+            # Build initial prompt with tools specification
+            prompt_builder = PromptBuilder(template_name="default")
+            initial_prompt = prompt_builder.build_initial_prompt(
+                user_prompt=self.ctx.prompt,
+                tools_info=tools_spec
+            )
+            
+            # Log the initial prompt with JSON formatting
+            logger.info("Initial prompt generated successfully")
+            log_json(logger, initial_prompt, "Full initial prompt")
+            
+            # Initialize and use LLM client
+            await self._handle_llm_interaction(initial_prompt)
+            
+        except Exception as e:
+            logger.error(f"Session {self.id}: Critical error during session: {e}")
+            raise
+        finally:
+            logger.info(f"Session {self.id}: Session completed")
+
+    async def _handle_llm_interaction(self, initial_prompt: dict) -> None:
+        """
+        Handle LLM interaction with proper error handling.
         
-        # Retrieve available tools from the MCP server
-        tools_spec = await stdio_client.get_tools()
-        
-        # Build initial prompt with tools specification
-        prompt_builder = PromptBuilder(template_name="default")
-        initial_prompt = prompt_builder.build_initial_prompt(
-            user_prompt=self.ctx.prompt,
-            tools_info=tools_spec
-        )
-        
-        # Log the initial prompt with JSON formatting
-        logger.info("Initial prompt generated successfully")
-        log_json(logger, initial_prompt, "Full initial prompt")
-        
-        # Initialize and use LLM client
+        Args:
+            initial_prompt: The initial prompt to send to the LLM
+        """
         try:
             # Create LLM configuration from environment variables
             llm_config = LLMConfig()
@@ -107,18 +130,25 @@ class Session:
             # Create LLM client with session ID for tracking
             llm_client = OpenAIClient(llm_config, session_id=self.id)
             
-            # Send chat completion request with initial prompt and tools
-            logger.info(f"Session {self.id}: Sending request to LLM")
-            llm_response = await llm_client.chat_completion(
-                messages=initial_prompt["messages"]
-            )
-            
-            # Log successful LLM response
-            logger.info(f"Session {self.id}: LLM response received successfully")
-            log_json(logger, llm_response, "LLM Response")
-            
-            # Close LLM client session
-            await llm_client.close()
+            try:
+                # Send chat completion request with initial prompt and tools
+                logger.info(f"Session {self.id}: Sending request to LLM")
+                llm_response = await llm_client.chat_completion(
+                    messages=initial_prompt["messages"],
+                    tools=initial_prompt["tools"]
+                )
+                
+                # Parse LLM response
+                llm_response_parser = LLMResponseParser()
+                llm_response_parser.parse(llm_response)
+                
+                # Log successful LLM response
+                logger.info(f"Session {self.id}: LLM response received successfully")
+                log_json(logger, llm_response, "LLM Response")
+                
+            finally:
+                # Close LLM client session
+                await llm_client.close()
             
         except LLMConfigurationError as e:
             logger.warning(f"Session {self.id}: LLM configuration error: {e}")
@@ -131,5 +161,3 @@ class Session:
         except Exception as e:
             logger.error(f"Session {self.id}: Unexpected error during LLM interaction: {e}")
             logger.warning(f"Session {self.id}: Continuing despite unexpected error")
-        
-        logger.info(f"Session {self.id}: Session completed")

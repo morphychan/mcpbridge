@@ -62,7 +62,7 @@ class LLMConfig:
         
         self.temperature = self._get_float_env(
             "MCPBRIDGE_LLM_TEMPERATURE", 
-            0.7, 
+            1.0, 
             min_val=0.0, 
             max_val=2.0
         )
@@ -75,7 +75,7 @@ class LLMConfig:
         
         self.timeout = self._get_float_env(
             "MCPBRIDGE_LLM_TIMEOUT", 
-            30.0, 
+            120.0, 
             min_val=1.0
         )
         

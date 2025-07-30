@@ -5,7 +5,7 @@ This module provides LLM client functionality for MCP Bridge,
 supporting OpenAI-compatible API interactions.
 """
 
-from mcpbridge.llm.client import OpenAIClient
+from mcpbridge.llm.openai.client import OpenAIClient
 from mcpbridge.llm.config import LLMConfig
 from mcpbridge.llm.exceptions import (
     LLMError,
