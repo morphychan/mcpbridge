@@ -108,4 +108,5 @@ class ToolCallResult(BaseModel):
     """
     role: Literal["tool"] = "tool"
     tool_call_id: str
+    name: str
     content: str

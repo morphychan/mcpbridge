@@ -53,7 +53,7 @@ class Conversation:
         """
         self.messages.append(UserMessage(content=content))
 
-    def add_assistant_message(self, content: str = None, tool_calls: List[ToolCall] = None) -> None:
+    def add_assistant_message(self, response: dict) -> None:
         """
         Add an assistant message to the conversation.
         
@@ -62,12 +62,17 @@ class Conversation:
         can be provided.
         
         Args:
-            content: Optional text response from the assistant
-            tool_calls: Optional list of tool calls made by the assistant
+            response: The response from the LLM
         """
-        self.messages.append(AssistantMessage(content=content, tool_calls=tool_calls))
+        if isinstance(response, dict) and "choices" in response and len(response["choices"]) > 0:
+            message = response["choices"][0]["message"]
+            
+            if "tool_calls" in message and message["tool_calls"]:
+                self.messages.append(AssistantMessage(content=message["content"], tool_calls=message["tool_calls"]))
+            else:
+                self.messages.append(AssistantMessage(content=message["content"]))
 
-    def add_tool_result(self, tool_call_id: str, content: str) -> None:
+    def add_tool_result(self, tool_call_id: str, name: str, content: str) -> None:
         """
         Add a tool result message to the conversation.
         
@@ -77,9 +82,10 @@ class Conversation:
         
         Args:
             tool_call_id: ID of the tool call this result corresponds to
+            name: The name of the tool that was called
             content: The result or output from the tool execution
         """
-        self.messages.append(ToolCallResult(tool_call_id=tool_call_id, content=content))
+        self.messages.append(ToolCallResult(tool_call_id=tool_call_id, name=name, content=content))
 
     def get_messages(self) -> List[dict]:
         """

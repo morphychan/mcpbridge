@@ -101,7 +101,7 @@ class Session:
             prompt_builder = PromptBuilder(template_name="default")
             initial_prompt = prompt_builder.build_initial_prompt(user_prompt=self.ctx.prompt)
 
-           # Log the initial prompt with JSON formatting
+            # Log the initial prompt with JSON formatting
             logger.info("Initial prompt generated successfully")
             log_json(logger, initial_prompt, "Full initial prompt")
 
@@ -110,18 +110,25 @@ class Session:
             messages = conv.get_messages()
             log_json(logger, messages, "Full initial messages")
 
-            # Initialize and use LLM client
+            # Initialize with LLM and handle LLM response
             llm_response = await self._handle_llm_interaction(conv, tools_info)
+            conv.add_assistant_message(llm_response)
+            messages = conv.get_messages()
+            log_json(logger, messages, "First LLM response messages")
 
             # Parse LLM response
-            # response_parser = OpenAIParser()
-            # while response_parser.need_tools_call(llm_response):
-            #     tool_call =response_parser.prepare_tools_call(llm_response)
-            #     # Assume only one tool call is needed
-            #     tool_result = await stdio_client.call_tool(tool_call[0]["name"], tool_call[0]["arguments"])
-            #     tool_result_parser = ToolResultParser()
-            #     tool_result_parser.parse(tool_result)
-            #     break
+            response_parser = OpenAIParser()
+            while response_parser.need_tools_call(llm_response):
+                tool_call =response_parser.prepare_tools_call(llm_response)
+                # Assume only one tool call is needed
+                tool_result = await stdio_client.call_tool(tool_call[0]["name"], tool_call[0]["arguments"])
+                tool_result_parser = ToolResultParser()
+                parse_result = tool_result_parser.parse(tool_call[0]["id"], tool_result)
+                conv.add_tool_result(tool_call[0]["id"], tool_call[0]["name"], parse_result["text_content"])
+                messages = conv.get_messages()
+                log_json(logger, messages, "Tool result messages")
+                llm_response = await self._handle_llm_interaction(conv, tools_info)
+                break
   
         except Exception as e:
             logger.error(f"Session {self.id}: Critical error during session: {e}")

@@ -30,7 +30,7 @@ class ToolResultParser:
         """Initialize the ResultParser."""
         self.logger = logger
     
-    def parse(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
+    def parse(self, tool_call_id: str, tool_result: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse a tool result and extract all relevant information.
         
@@ -43,6 +43,7 @@ class ToolResultParser:
             
         Returns:
             Dict[str, Any]: Standardized parsed result containing:
+                - id (str): The ID of the tool call
                 - success (bool): Whether the tool execution was successful
                 - text_content (str): Human-readable text content
                 - structured_data (Dict[str, Any]): Structured data content
@@ -76,6 +77,7 @@ class ToolResultParser:
         summary = self.get_result_summary(tool_result)
         
         parsed_result = {
+            "id": tool_call_id,
             "success": success,
             "text_content": text_content,
             "structured_data": structured_data,

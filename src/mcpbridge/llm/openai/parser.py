@@ -108,6 +108,7 @@ class OpenAIParser:
         
         # Return MCP tool call format
         return {
+            "id": openai_tool_call["id"],
             "name": tool_name,
             "arguments": arguments
         }
