@@ -10,9 +10,11 @@ LLM interactions, and response handling.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Optional, Dict, Any
+from typing import TYPE_CHECKING, List, Optional, Dict, Any
 
+from mcpbridge.client.result_parser import ToolResultParser
 from mcpbridge.client.stdio import StdioClient
+from mcpbridge.core.conversation import Conversation
 from mcpbridge.llm.openai.client import OpenAIClient
 from mcpbridge.llm.config import LLMConfig
 from mcpbridge.llm.exceptions import LLMConfigurationError, LLMError
@@ -97,25 +99,29 @@ class Session:
             
             # Build initial prompt with tools specification
             prompt_builder = PromptBuilder(template_name="default")
-            initial_prompt = prompt_builder.build_initial_prompt(
-                user_prompt=self.ctx.prompt,
-                tools_info=tools_info
-            )
-            
-            # Log the initial prompt with JSON formatting
+            initial_prompt = prompt_builder.build_initial_prompt(user_prompt=self.ctx.prompt)
+
+           # Log the initial prompt with JSON formatting
             logger.info("Initial prompt generated successfully")
             log_json(logger, initial_prompt, "Full initial prompt")
-            
+
+            conv = Conversation(session=self.id, system_prompt=initial_prompt["messages"][0]["content"])
+            conv.add_user_message(initial_prompt["messages"][1]["content"])
+            messages = conv.get_messages()
+            log_json(logger, messages, "Full initial messages")
+
             # Initialize and use LLM client
-            llm_response = await self._handle_llm_interaction(initial_prompt)
+            llm_response = await self._handle_llm_interaction(conv, tools_info)
 
             # Parse LLM response
-            response_parser = OpenAIParser()
-            while response_parser.need_tools_call(llm_response):
-                tool_call =response_parser.prepare_tools_call(llm_response)
-                # Assume only one tool call is needed
-                tool_result = await stdio_client.call_tool(tool_call[0]["name"], tool_call[0]["arguments"])
-                break
+            # response_parser = OpenAIParser()
+            # while response_parser.need_tools_call(llm_response):
+            #     tool_call =response_parser.prepare_tools_call(llm_response)
+            #     # Assume only one tool call is needed
+            #     tool_result = await stdio_client.call_tool(tool_call[0]["name"], tool_call[0]["arguments"])
+            #     tool_result_parser = ToolResultParser()
+            #     tool_result_parser.parse(tool_result)
+            #     break
   
         except Exception as e:
             logger.error(f"Session {self.id}: Critical error during session: {e}")
@@ -123,12 +129,13 @@ class Session:
         finally:
             logger.info(f"Session {self.id}: Session completed")
 
-    async def _handle_llm_interaction(self, initial_prompt: dict) -> Optional[Dict[str, Any]]:
+    async def _handle_llm_interaction(self, conv: Conversation, tools_info: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
         Handle LLM interaction with proper error handling.
         
         Args:
-            initial_prompt: The initial prompt to send to the LLM
+            conv: The conversation to send to the LLM
+            tools_info: The tools information to send to the LLM
             
         Returns:
             Optional[Dict[str, Any]]: The LLM response if successful, None if error occurred
@@ -145,13 +152,12 @@ class Session:
                 # Send chat completion request with initial prompt and tools
                 logger.info(f"Session {self.id}: Sending request to LLM")
                 llm_response = await llm_client.chat_completion(
-                    messages=initial_prompt["messages"],
-                    tools=initial_prompt["tools"]
+                    messages=conv.get_messages(),
+                    tools=tools_info
                 )
                 
                # Log successful LLM response
                 logger.info(f"Session {self.id}: LLM response received successfully")
-                # log_json(logger, llm_response, "LLM Response")
 
                 return llm_response
 

@@ -34,24 +34,19 @@ class PromptBuilder:
         except IOError as e:
             raise IOError(f"Failed to read template '{self.template_name}': {e}")
     
-    def build_initial_prompt(self, user_prompt: str, tools_info: List[Dict]) -> Dict:
+    def build_initial_prompt(self, user_prompt: str) -> Dict:
         """
-        Build the initial prompt by combining user prompt and tools information.
+        Build the initial prompt by combining user prompt.
         
         Args:
             user_prompt (str): The user's input prompt
-            tools_info (List[Dict]): List of tool specifications from MCP server
             
         Returns:
             Dict: Complete prompt dictionary ready for LLM API
         """
-        # Convert tools_info to JSON string
-        tools_json = json.dumps(tools_info, ensure_ascii=False)
-        
         # Simple string replacement
         filled_template = self.template_content.format(
             user_prompt=user_prompt,
-            tools_info=tools_json
         )
         
         # Parse and return as dictionary

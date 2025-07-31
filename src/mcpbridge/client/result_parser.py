@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Dict, Any, List, Optional, Union
 import json
 
-from mcpbridge.utils.logging import get_mcpbridge_logger
+from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
 # Get configured logger for this module
 logger = get_mcpbridge_logger(__name__)
@@ -84,7 +84,8 @@ class ToolResultParser:
             "error_info": error_info
         }
         
-        self.logger.debug(f"Tool result parsed successfully: {summary}")
+        self.logger.info(f"Tool result parsed successfully: {summary}")
+        log_json(self.logger, parsed_result, "Tool result")
         return parsed_result
     
     def is_error(self, tool_result: Dict[str, Any]) -> bool:
