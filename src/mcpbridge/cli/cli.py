@@ -49,6 +49,11 @@ def main(
     Example:
         mcpbridge mcpserver stdio --path server.py
     """
+    if prompt is None:
+        ctx.obj = None
+        return
+    
+    # Create MCPContext only when a prompt is provided
     main_cmd = Command(cmd="main", options={"prompt": prompt})
     mcp_ctx = MCPContext(main_cmd)
     ctx.obj = mcp_ctx

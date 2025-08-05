@@ -11,8 +11,13 @@ The module implements a hierarchical command structure:
 """
 
 from mcpbridge.core.context import Command, Context as MCPContext, ContextManager
+from mcpbridge.utils.logging import get_mcpbridge_logger
 import typer
 from pathlib import Path
+from typing import List, Optional
+
+# Get configured logger for this module
+logger = get_mcpbridge_logger(__name__)
 
 mcpserv_app = typer.Typer(
     name="mcpserver",
@@ -42,18 +47,19 @@ def mcpserv(ctx: typer.Context):
         ctx (typer.Context): The Typer context object containing the shared
             MCP context from the parent command.
             
-    Raises:
-        AttributeError: If ctx.obj is None or doesn't contain a valid MCP context.
-        
     Note:
         This function modifies the command chain in place by adding the
         mcpserver command as a nested command to the current tail command.
+        If ctx.obj is None (e.g., during help requests), the function returns
+        gracefully without modifying the context.
         
     Example:
         mcpbridge mcpserver stdio  # This function is called for 'mcpserver'
     """
+    # If ctx.obj is None, this is likely a help request
+    # Return gracefully without modifying the context
     if ctx.obj is None:
-        raise AttributeError("MCP context not found. Ensure the main command was executed properly.")
+        return
     
     if not isinstance(ctx.obj, MCPContext):
         raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
@@ -66,11 +72,11 @@ def mcpserv(ctx: typer.Context):
 @stdio_app.callback(invoke_without_command=True)
 def stdio(
     ctx: typer.Context,
-    command: str = typer.Option(
-        "python", "--command", "-c", help="Command to run"
-    ),
-    path: Path = typer.Option(
-        Path("server.py"), "--path", "-p", help="Path to the MCP server"
+    tool: Optional[List[str]] = typer.Option(
+        None,
+        "--tool",
+        "-t",
+        help='Define a tool. The value should be a single string with name, command, and path separated by spaces. e.g., -t "mytool /path/to/command /path/to/script.py". Can be used multiple times.',
     ),
 ):
     """
@@ -80,51 +86,50 @@ def stdio(
     that communicates via standard input/output streams. It extends the command
     chain context and prepares the execution environment for the MCP server.
     
-    The stdio transport is the most common method for MCP server communication,
-    where the server receives JSON-RPC messages through stdin and sends responses
-    through stdout.
-    
     Args:
         ctx (typer.Context): The Typer context object containing the shared
             MCP context from parent commands.
-        command (str, optional): The command/interpreter to execute the MCP server.
-            Common values include "python", "python3", "node", etc. 
-            Defaults to "python".
-        path (Path, optional): Path to the MCP server script file that implements
-            the MCP protocol. Defaults to "server.py" in the current directory.
+        tool (Optional[List[str]]): A list of tool definitions. Each tool is defined by
+            a single string containing three space-separated values: name, command, and path.
             
     Raises:
         AttributeError: If ctx.obj is None or doesn't contain a valid MCP context.
-        typer.Exit: If the server file validation fails (when implemented).
+        typer.Exit: If the tool definitions are invalid.
         
     Example:
-        # Start server with custom interpreter and path
-        mcpbridge mcpserver stdio --command python3 --path /path/to/server.py
+        # Start server with two tools
+        mcpbridge mcpserver stdio -t "tool1 python /path/to/server1.py" -t "tool2 node /path/to/server2.js"
     """
+    if not tool:
+        typer.echo("Error: At least one tool must be provided via --tool or -t.", err=True)
+        raise typer.Exit(1)
+
+    tools = []
+    for t in tool:
+        parts = t.split()
+        if len(parts) != 3:
+            typer.echo(
+                f'Error: Each --tool option must contain exactly three space-separated parts: <name> <command> <path>. Got: "{t}"',
+                err=True,
+            )
+            raise typer.Exit(1)
+        tools.append({"name": parts[0], "command": parts[1], "path": parts[2]})
+
+    logger.info(f"Tools: {tools}")
+
+    # Now, handle the context-dependent logic.
     if ctx.obj is None:
-        raise AttributeError("MCP context not found. Ensure the main command was executed properly.")
-    
+        # This is likely a help request or a direct invocation without a parent context.
+        # We've already processed the tools, so we can exit gracefully if no further action is needed.
+        return
+
     if not isinstance(ctx.obj, MCPContext):
         raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
-    
-    mcp_ctx: MCPContext = ctx.obj
-    tail_cmd = mcp_ctx.get_root_command().get_tail_command()
-    stdio_cmd = Command(cmd="stdio", options={"command": command, "path": path})
-    tail_cmd.set_nested_command(stdio_cmd)
 
-    manager = ContextManager(mcp_ctx)
-    manager.run()
+    # mcp_ctx: MCPContext = ctx.obj
+    # tail_cmd = mcp_ctx.get_root_command().get_tail_command()
+    # stdio_cmd = Command(cmd="stdio", options={"tools": tools})
+    # tail_cmd.set_nested_command(stdio_cmd)
 
-    # Validate that the server file exists before attempting to run it
-    # if not path.exists():
-    #     typer.echo(f"Error: Server file '{path}' not found", err=True)
-    #     raise typer.Exit(1)
-    
-    # Ensure the path points to a file, not a directory
-    # if not path.is_file():
-    #     typer.echo(f"Error: '{path}' is not a file", err=True)
-    #     raise typer.Exit(1)
-    
-    # Display the command that will be executed
-    # typer.echo(f"Running `{command}` on MCP server at {path}")
-    # asyncio.run(run_stdio(command, [str(path)]))
+    # manager = ContextManager(mcp_ctx)
+    # manager.run()
