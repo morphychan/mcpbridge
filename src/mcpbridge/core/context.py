@@ -53,7 +53,7 @@ class ContextParser:
     The ContextParser is responsible for analyzing the hierarchical command structure
     stored in a Context object and extracting relevant configuration information.
     It validates command sequences, ensures proper nesting, and populates the
-    context's mcp_servers dictionary with parsed server configurations.
+    context's tools_config list with parsed server configurations.
     
     The parser expects a specific command structure:
     - Level 0: Root command (contains global options like prompt)
@@ -87,14 +87,14 @@ class ContextParser:
         to appropriate specialized parsing methods.
         
         The parsing process validates the command hierarchy and populates
-        the context's mcp_servers dictionary with extracted configurations.
+        the context's tools_config list with extracted configurations.
         
         Raises:
             ValueError: If the command structure is invalid or incomplete
         """
         self._parse_first_level_command()
         logger.info(f"Context parsing completed successfully: {self.ctx}")
-        logger.debug(f"Parsed MCP server configuration: {self.ctx.mcp_server}")
+        logger.debug(f"Parsed tool configurations: {self.ctx.tools_config}")
 
     def _parse_first_level_command(self) -> None:
         """
@@ -123,8 +123,7 @@ class ContextParser:
         for standard input/output communication.
         
         This method acts as a dispatcher, routing to protocol-specific
-        parsing methods based on the detected protocol type. It initializes
-        the server configuration dictionary before delegating to specific parsers.
+        parsing methods based on the detected protocol type.
         
         Raises:
             ValueError: If the second-level command is missing or specifies 
@@ -132,39 +131,39 @@ class ContextParser:
         """
         second_level_cmd = self.ctx.get_root_command().get_n_level_command(2)
         if second_level_cmd.get_cmd() == "stdio":
-            self.ctx.mcp_server["stdio"] = {}
             self._parse_stdio(second_level_cmd)
         else:
             raise ValueError(f"Expected 'stdio' command at second level, got {second_level_cmd.get_cmd()}")
     
     def _parse_stdio(self, stdio: Command) -> None:
         """
-        Parse stdio-specific MCP server configuration.
+        Parse stdio-specific MCP server configurations from a list of tools.
         
-        Extracts and validates configuration options for stdio-based MCP servers.
-        This includes the command to execute and the path to the server script.
-        The parsed configuration is stored in the context's mcp_servers dictionary
-        under the 'stdio' key, replacing the initial empty dictionary.
+        Extracts and validates configuration options for stdio-based MCP servers
+        from the 'tools' option. The parsed configurations are stored in the 
+        context's tools_config list.
         
         Args:
             stdio (Command): The stdio command object containing server configuration
-                           options. Must have 'command' and 'path' options defined
-                           and non-empty.
+                           options. Must have a 'tools' option which is a list of
+                           dictionaries, each with 'name', 'command', and 'path'.
         
         Raises:
-            ValueError: If required options ('command' or 'path') are missing
-                       or empty
+            ValueError: If the 'tools' option is missing, not a list, or if any
+                       tool definition is invalid.
         
         Side Effects:
-            Updates self.ctx.mcp_servers["stdio"] with the parsed configuration
-            containing 'command' and 'path' keys
+            Updates self.ctx.tools_config with the parsed configurations.
         """
-        if not stdio.options['command'] or not stdio.options['path']:
-            raise ValueError("'command' or 'path' options are required for stdio")
-        self.ctx.mcp_server["stdio"] = {
-            "command": stdio.options['command'],
-            "path": stdio.options['path']
-        }
+        tools = stdio.options.get('tools')
+        if not isinstance(tools, list):
+            raise ValueError("'tools' option is required and must be a list for stdio")
+
+        for tool_config in tools:
+            if not all(k in tool_config for k in ['name', 'command', 'path']):
+                raise ValueError(f"Invalid tool definition. Each tool must have 'name', 'command', and 'path'. Got: {tool_config}")
+            self.ctx.tools_config.append(tool_config)
+
 
 class Context:
     """
@@ -183,7 +182,7 @@ class Context:
         """
         self.root_cmd = command
         self.prompt = self._get_prompt()
-        self.mcp_server = {}
+        self.tools_config = []
 
     def get_root_command(self) -> Command:
         """
@@ -215,12 +214,12 @@ class Context:
         Return a string representation of the Context.
         
         Provides a concise summary of the context's key attributes including
-        the root command name, prompt length, and MCP server configurations.
+        the root command name, prompt length, and tool configurations.
         
         Returns:
             str: A formatted string showing the context's current state
         """
-        return f"Context(root_cmd='{self.root_cmd.cmd}', prompt_len={len(self.prompt)}, mcp_server={self.mcp_server})"
+        return f"Context(root_cmd='{self.root_cmd.cmd}', prompt_len={len(self.prompt)}, tools_config={self.tools_config})"
 
     def _get_prompt(self) -> str:
         """

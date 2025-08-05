@@ -106,30 +106,18 @@ def stdio(
 
     tools = []
     for t in tool:
-        parts = t.split()
-        if len(parts) != 3:
-            typer.echo(
-                f'Error: Each --tool option must contain exactly three space-separated parts: <name> <command> <path>. Got: "{t}"',
-                err=True,
-            )
-            raise typer.Exit(1)
-        tools.append({"name": parts[0], "command": parts[1], "path": parts[2]})
+        name, command, path = t.split()
+        tools.append({"name": name, "command": command, "path": path})
 
     logger.info(f"Tools: {tools}")
-
-    # Now, handle the context-dependent logic.
-    if ctx.obj is None:
-        # This is likely a help request or a direct invocation without a parent context.
-        # We've already processed the tools, so we can exit gracefully if no further action is needed.
-        return
 
     if not isinstance(ctx.obj, MCPContext):
         raise AttributeError(f"Invalid context type. Expected MCPContext, got {type(ctx.obj)}")
 
-    # mcp_ctx: MCPContext = ctx.obj
-    # tail_cmd = mcp_ctx.get_root_command().get_tail_command()
-    # stdio_cmd = Command(cmd="stdio", options={"tools": tools})
-    # tail_cmd.set_nested_command(stdio_cmd)
+    mcp_ctx: MCPContext = ctx.obj
+    tail_cmd = mcp_ctx.get_root_command().get_tail_command()
+    stdio_cmd = Command(cmd="stdio", options={"tools": tools})
+    tail_cmd.set_nested_command(stdio_cmd)
 
-    # manager = ContextManager(mcp_ctx)
-    # manager.run()
+    manager = ContextManager(mcp_ctx)
+    manager.run()
