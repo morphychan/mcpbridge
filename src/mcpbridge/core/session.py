@@ -9,6 +9,7 @@ LLM interactions, and response handling with multi-turn conversations.
 
 from __future__ import annotations
 
+import sys
 import uuid
 from typing import TYPE_CHECKING
 
@@ -120,7 +121,7 @@ class Session:
         tools_info = await self.tools_executor.get_tools_definition()
         prompt_builder = PromptBuilder(template_name="default")
         initial_prompt = prompt_builder.build_initial_prompt(user_prompt=self.ctx.prompt)
-
+        
         # Initialize conversation with system and user messages
         conv = Conversation(session=self.id, system_prompt=initial_prompt["messages"][0]["content"])
         conv.add_user_message(initial_prompt["messages"][1]["content"])
@@ -131,7 +132,6 @@ class Session:
         if not llm_response:
             logger.error(f"Session {self.id}: failed to get initial LLM response. Aborting.")
             return
-
         conv.add_assistant_message(llm_response)
         log_json(logger, conv.get_messages(), "First LLM response messages")
 
@@ -150,7 +150,7 @@ class Session:
                     tool_result["text_content"]
                 )
             log_json(logger, conv.get_messages(), "Tool result messages")
-
+            
             # Get next LLM response with updated conversation context
             llm_response = await self.llm_executor.get_completion(conv, tools_info)
             if not llm_response:

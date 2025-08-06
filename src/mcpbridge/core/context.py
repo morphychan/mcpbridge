@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import sys
 
 from mcpbridge.core.command import Command
 from mcpbridge.core.session import Session
