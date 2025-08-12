@@ -7,6 +7,8 @@ a lightweight Model Context Protocol (MCP) host for personal use.
 
 from mcpbridge.core.context import Command, Context as MCPContext
 import typer
+from pathlib import Path
+import yaml
 
 from .commands import mcpserver
 
@@ -26,6 +28,14 @@ def main(
         None,
         "--prompt",
         help="Prompt string for the language model"
+    ),
+    config: Path = typer.Option(
+        None,
+        "--config",
+        help="Path to the configuration file (YAML format)",
+        exists=True,
+        dir_okay=False,
+        resolve_path=True
     )
 ):
     """
@@ -41,6 +51,9 @@ def main(
             across commands.
         prompt (str, optional): An optional prompt string that can be passed
             to the language model. Defaults to None.
+        config (Path, optional): Path to a YAML configuration file. If provided,
+            settings from this file will be used, but can be overridden by
+            command line arguments.
             
     Note:
         The created MCP context is stored in ctx.obj and can be accessed
@@ -49,13 +62,31 @@ def main(
     Example:
         mcpbridge mcpserver stdio --path server.py
     """
-    if prompt is None:
+    # Load config file if provided
+    config_data = {}
+    if config:
+        try:
+            with open(config, 'r') as f:
+                config_data = yaml.safe_load(f) or {}
+        except Exception as e:
+            typer.echo(f"Error reading config file: {e}", err=True)
+            raise typer.Exit(1)
+    
+    # Command line prompt overrides config file prompt
+    final_prompt = prompt or config_data.get('prompt')
+    
+    if final_prompt is None:
         ctx.obj = None
         return
     
-    # Create MCPContext only when a prompt is provided
-    main_cmd = Command(cmd="main", options={"prompt": prompt})
+    # Create MCPContext with the final prompt
+    main_cmd = Command(cmd="main", options={"prompt": final_prompt})
     mcp_ctx = MCPContext(main_cmd)
+    
+    # Store config data in context for subcommands
+    if config_data:
+        mcp_ctx.config = config_data
+    
     ctx.obj = mcp_ctx
 
 
