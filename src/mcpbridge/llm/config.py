@@ -9,7 +9,22 @@ and default values.
 from __future__ import annotations
 
 import os
+from enum import Enum
 from typing import Optional
+
+
+class LLMProvider(Enum):
+    """Supported LLM providers."""
+    OPENAI = "openai"
+    GEMINI = "gemini"
+    
+    @classmethod
+    def from_string(cls, value: str) -> "LLMProvider":
+        """Convert string to LLMProvider enum."""
+        try:
+            return cls(value.lower())
+        except ValueError:
+            raise ValueError(f"Unsupported LLM provider: {value}. Must be one of: {', '.join([p.value for p in cls])}")
 
 from mcpbridge.utils.logging import get_mcpbridge_logger
 
@@ -46,18 +61,32 @@ class LLMConfig:
         """
         logger.debug("Initializing LLM configuration from environment variables")
         
-        # Load and validate required configuration
-        self.api_key = self._get_required_env("MCPBRIDGE_LLM_API_KEY")
+        # Load and validate provider configuration
+        provider_str = self._get_optional_env("MCPBRIDGE_LLM_PROVIDER", "openai")
+        self.provider = LLMProvider.from_string(provider_str)
         
-        # Load optional configuration with defaults
-        self.base_url = self._get_optional_env(
-            "MCPBRIDGE_LLM_BASE_URL", 
-            "https://api.openai.com/v1"
+        # Load provider-specific API key
+        key_env_var = (
+            "MCPBRIDGE_OPENAI_API_KEY" if self.provider == LLMProvider.OPENAI
+            else "MCPBRIDGE_GEMINI_API_KEY"
         )
+        self.api_key = self._get_required_env(key_env_var)
         
+        # Load base URL (only needed for OpenAI)
+        if self.provider == LLMProvider.OPENAI:
+            self.base_url = self._get_optional_env(
+                "MCPBRIDGE_LLM_BASE_URL", 
+                "https://api.openai.com/v1"
+            )
+        else:
+            # Gemini uses a fixed API endpoint
+            self.base_url = None
+        
+        # Load model with provider-specific defaults
         self.model = self._get_optional_env(
             "MCPBRIDGE_LLM_MODEL", 
-            "gpt-4"
+            "gpt-4" if self.provider == LLMProvider.OPENAI
+            else "gemini-pro"
         )
         
         self.temperature = self._get_float_env(
@@ -190,8 +219,10 @@ class LLMConfig:
             str: A formatted string showing the configuration (API key masked)
         """
         masked_key = f"{self.api_key[:8]}..." if len(self.api_key) > 8 else "***"
+        base_url_str = f"base_url={self.base_url}, " if self.base_url else ""
         return (
-            f"LLMConfig(model={self.model}, base_url={self.base_url}, "
+            f"LLMConfig(provider={self.provider.value}, model={self.model}, "
+            f"{base_url_str}"
             f"api_key={masked_key}, temperature={self.temperature}, "
             f"max_tokens={self.max_tokens}, timeout={self.timeout})"
         ) 

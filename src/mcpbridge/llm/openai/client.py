@@ -25,6 +25,7 @@ from mcpbridge.llm.exceptions import (
     LLMResponseError,
     LLMModelError,
     LLMTokenLimitError,
+    LLMConfigurationError,
 )
 from mcpbridge.utils.logging import get_mcpbridge_logger
 
@@ -56,6 +57,8 @@ class OpenAIClient(BaseLLMClient):
                                       If not provided, defaults to "unknown"
         """
         super().__init__(config, session_id)
+        if not config.base_url:
+            raise LLMConfigurationError("OpenAI client requires base_url configuration")
         self.session: Optional[aiohttp.ClientSession] = None
         logger.info(f"Session {self.session_id}: Initialized OpenAI client with base URL: {config.base_url}")
     

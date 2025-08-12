@@ -16,7 +16,9 @@ from typing import TYPE_CHECKING
 from mcpbridge.core.conversation import Conversation
 from mcpbridge.core.llm_executor import LLMExecutor
 from mcpbridge.core.tool_executor import ToolExecutor
+from mcpbridge.llm.config import LLMConfig, LLMProvider
 from mcpbridge.llm.openai.parser import OpenAIParser
+from mcpbridge.llm.gemini.parser import GeminiParser
 from mcpbridge.prompt.builder import PromptBuilder
 from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
@@ -135,8 +137,17 @@ class Session:
         conv.add_assistant_message(llm_response)
         log_json(logger, conv.get_messages(), "First LLM response messages")
 
+        # Create appropriate parser based on configuration
+        config = LLMConfig()
+        if config.provider == LLMProvider.OPENAI:
+            response_parser = OpenAIParser()
+        elif config.provider == LLMProvider.GEMINI:
+            response_parser = GeminiParser()
+        else:
+            logger.error(f"Session {self.id}: Unsupported LLM provider {config.provider}")
+            return
+            
         # Run conversation loop until no more tool calls are needed
-        response_parser = OpenAIParser()
         while response_parser.need_tools_call(llm_response):
             # Extract and prepare tool calls from LLM response
             tool_calls = response_parser.prepare_tools_call(llm_response)

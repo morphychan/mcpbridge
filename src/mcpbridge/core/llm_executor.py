@@ -9,9 +9,11 @@ from __future__ import annotations
 from typing import List, Dict, Any, Optional
 
 from mcpbridge.core.conversation import Conversation
-from mcpbridge.llm.config import LLMConfig
+from mcpbridge.llm.base import BaseLLMClient
+from mcpbridge.llm.config import LLMConfig, LLMProvider
 from mcpbridge.llm.exceptions import LLMConfigurationError, LLMError
 from mcpbridge.llm.openai.client import OpenAIClient
+from mcpbridge.llm.gemini.client import GeminiClient
 from mcpbridge.utils.logging import get_mcpbridge_logger
 
 # Initialize logger for this module
@@ -28,7 +30,7 @@ class LLMExecutor:
     
     Attributes:
         _session_id (str): Unique identifier for the current session
-        _client (Optional[OpenAIClient]): The LLM client instance, initialized lazily
+        _client (Optional[BaseLLMClient]): The LLM client instance, initialized lazily
     """
 
     def __init__(self, session_id: str):
@@ -39,7 +41,7 @@ class LLMExecutor:
             session_id (str): Unique identifier for this session, used for logging and tracking
         """
         self._session_id = session_id
-        self._client: Optional[OpenAIClient] = None
+        self._client: Optional[BaseLLMClient] = None
 
     def _initialize_client(self):
         """
@@ -56,10 +58,15 @@ class LLMExecutor:
             return  # Client already initialized
         
         try:
-            # Load configuration and create client
+            # Load configuration and create appropriate client
             config = LLMConfig()
-            self._client = OpenAIClient(config, session_id=self._session_id)
-            logger.info(f"Session {self._session_id}: LLM client initialized.")
+            if config.provider == LLMProvider.OPENAI:
+                self._client = OpenAIClient(config, session_id=self._session_id)
+            elif config.provider == LLMProvider.GEMINI:
+                self._client = GeminiClient(config, session_id=self._session_id)
+            else:
+                raise LLMConfigurationError(f"Unsupported LLM provider: {config.provider}")
+            logger.info(f"Session {self._session_id}: LLM client initialized for provider {config.provider.value}")
         except LLMConfigurationError as e:
             logger.warning(f"Session {self._session_id}: LLM configuration error: {e}")
             self._client = None  # Ensure client is None on failure
