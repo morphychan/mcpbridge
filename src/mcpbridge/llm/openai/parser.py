@@ -1,15 +1,17 @@
 import json
+from typing import Dict, List, Any
 
+from mcpbridge.llm.base import BaseLLMParser
 from mcpbridge.utils.logging import get_mcpbridge_logger, log_json
 
 # Get configured logger for this module
 logger = get_mcpbridge_logger(__name__)
 
-class OpenAIParser:
+class OpenAIParser(BaseLLMParser):
     def __init__(self):
         pass
 
-    def parse(self, response: dict) -> dict:
+    def parse(self, response: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse LLM response and print it in JSON format for debugging.
         
@@ -23,7 +25,7 @@ class OpenAIParser:
         # if self.need_tools_call(response):
         #     self.prepare_tools_call(response)
     
-    def need_tools_call(self, response: dict) -> bool:
+    def need_tools_call(self, response: Dict[str, Any]) -> bool:
         """
         Check if the LLM response needs a tools call.
         
@@ -41,7 +43,7 @@ class OpenAIParser:
                 logger.info("LLM response does not need a tools call")
                 return False
 
-    def prepare_tools_call(self, response: dict) -> list[dict]:
+    def prepare_tools_call(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Prepare the tools call for the LLM response.
         
@@ -85,30 +87,37 @@ class OpenAIParser:
         
         return tools_calls
 
-    def _convert_openai_tool_call_to_mcp(self, openai_tool_call: dict) -> dict:
+    def _convert_tools_format(self, tools_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert a single OpenAI tool call to MCP format.
+        Convert tools data between OpenAI and MCP format.
         
         Args:
-            openai_tool_call (dict): OpenAI format tool call
+            tools_data (Dict[str, Any]): Tools data in OpenAI format
             
         Returns:
-            dict: MCP format tool call
+            Dict[str, Any]: Tools data in MCP format
             
         Raises:
             KeyError: If required fields are missing
             json.JSONDecodeError: If arguments parsing fails
         """
-        # Extract tool information from OpenAI format
-        tool_name = openai_tool_call["function"]["name"]
-        arguments_str = openai_tool_call["function"]["arguments"]
-        
-        # Parse arguments JSON string
-        arguments = json.loads(arguments_str)
-        
-        # Return MCP tool call format
-        return {
-            "id": openai_tool_call["id"],
-            "name": tool_name,
-            "arguments": arguments
-        }
+        if not tools_data:
+            return {}
+            
+        try:
+            # Extract tool information from OpenAI format
+            tool_name = tools_data["function"]["name"]
+            arguments_str = tools_data["function"]["arguments"]
+            
+            # Parse arguments JSON string
+            arguments = json.loads(arguments_str)
+            
+            # Return MCP tool call format
+            return {
+                "id": tools_data["id"],
+                "name": tool_name,
+                "arguments": arguments
+            }
+        except (KeyError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to convert OpenAI tool format: {e}")
+            return {}

@@ -14,6 +14,7 @@ from typing import Dict, List, Any, Optional
 
 import aiohttp
 
+from mcpbridge.llm.base import BaseLLMClient
 from mcpbridge.llm.config import LLMConfig
 from mcpbridge.llm.exceptions import (
     LLMConnectionError,
@@ -31,7 +32,7 @@ from mcpbridge.utils.logging import get_mcpbridge_logger
 logger = get_mcpbridge_logger(__name__)
 
 
-class OpenAIClient:
+class OpenAIClient(BaseLLMClient):
     """
     HTTP client for OpenAI-compatible LLM services.
     
@@ -54,8 +55,7 @@ class OpenAIClient:
             session_id (Optional[str]): Session identifier for tracking and logging.
                                       If not provided, defaults to "unknown"
         """
-        self.config = config
-        self.session_id = session_id or "unknown"
+        super().__init__(config, session_id)
         self.session: Optional[aiohttp.ClientSession] = None
         logger.info(f"Session {self.session_id}: Initialized OpenAI client with base URL: {config.base_url}")
     
