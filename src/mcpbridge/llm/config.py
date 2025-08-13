@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any
+
+from mcpbridge.llm.tools.base import IToolConverter
+from mcpbridge.llm.tools.openai import OpenAIToolConverter
+from mcpbridge.llm.tools.gemini import GeminiToolConverter
 
 
 class LLMProvider(Enum):
@@ -47,6 +51,7 @@ class LLMConfig:
         MCPBRIDGE_LLM_TEMPERATURE (optional): Temperature parameter (0.0-2.0)
         MCPBRIDGE_LLM_MAX_TOKENS (optional): Maximum tokens in response
         MCPBRIDGE_LLM_TIMEOUT (optional): Request timeout in seconds
+        MCPBRIDGE_LLM_TOOLS_ENABLED (optional): Enable/disable tool support (true/false)
     """
     
     def __init__(self) -> None:
@@ -108,8 +113,17 @@ class LLMConfig:
             min_val=1.0
         )
         
+        # Load tool-related configuration
+        self.tools_enabled = self._get_bool_env("MCPBRIDGE_LLM_TOOLS_ENABLED", True)
+        
+        # Create appropriate tool converter based on provider if tools are enabled
+        self.tool_converter = self._create_tool_converter() if self.tools_enabled else None
+        
         logger.info("LLM configuration loaded successfully")
-        logger.debug(f"Configuration: model={self.model}, base_url={self.base_url}")
+        logger.debug(
+            f"Configuration: model={self.model}, base_url={self.base_url}, "
+            f"tools_enabled={self.tools_enabled}"
+        )
     
     def _get_required_env(self, var_name: str) -> str:
         """
@@ -211,6 +225,53 @@ class LLMConfig:
         
         return float_value
     
+    def _get_bool_env(self, var_name: str, default: bool) -> bool:
+        """
+        Get a boolean environment variable.
+        
+        Args:
+            var_name (str): Name of the environment variable
+            default (bool): Default value if environment variable is not set
+            
+        Returns:
+            bool: Parsed boolean value
+            
+        Raises:
+            ValueError: If the value cannot be parsed as boolean
+        """
+        value = os.getenv(var_name)
+        if not value:
+            return default
+        
+        value = value.strip().lower()
+        if value in ("true", "1", "yes", "on"):
+            return True
+        if value in ("false", "0", "no", "off"):
+            return False
+        
+        raise ValueError(
+            f"Environment variable '{var_name}' must be a boolean value "
+            f"(true/false/1/0/yes/no/on/off), got '{value}'"
+        )
+    
+    def _create_tool_converter(self) -> Optional[IToolConverter]:
+        """
+        Create appropriate tool converter based on provider.
+        
+        Returns:
+            Optional[IToolConverter]: Tool converter instance or None if tools are disabled
+        """
+        if not self.tools_enabled:
+            return None
+            
+        if self.provider == LLMProvider.OPENAI:
+            return OpenAIToolConverter()
+        elif self.provider == LLMProvider.GEMINI:
+            return GeminiToolConverter()
+        else:
+            logger.warning(f"No tool converter available for provider: {self.provider}")
+            return None
+    
     def __str__(self) -> str:
         """
         Return a string representation of the configuration.
@@ -220,9 +281,14 @@ class LLMConfig:
         """
         masked_key = f"{self.api_key[:8]}..." if len(self.api_key) > 8 else "***"
         base_url_str = f"base_url={self.base_url}, " if self.base_url else ""
+        tools_str = (
+            f"tools_enabled={self.tools_enabled}, "
+            f"tool_converter={self.tool_converter.__class__.__name__ if self.tool_converter else 'None'}"
+        )
         return (
             f"LLMConfig(provider={self.provider.value}, model={self.model}, "
             f"{base_url_str}"
             f"api_key={masked_key}, temperature={self.temperature}, "
-            f"max_tokens={self.max_tokens}, timeout={self.timeout})"
+            f"max_tokens={self.max_tokens}, timeout={self.timeout}, "
+            f"{tools_str})"
         ) 

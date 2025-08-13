@@ -27,6 +27,7 @@ from mcpbridge.llm.exceptions import (
     LLMTokenLimitError,
     LLMConfigurationError,
 )
+from mcpbridge.llm.tools.openai import OpenAIToolConverter
 from mcpbridge.utils.logging import get_mcpbridge_logger
 
 # Get configured logger for this module
@@ -47,7 +48,12 @@ class OpenAIClient(BaseLLMClient):
         session (Optional[aiohttp.ClientSession]): HTTP session for requests
     """
     
-    def __init__(self, config: LLMConfig, session_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        config: LLMConfig,
+        session_id: Optional[str] = None,
+        tool_converter: Optional[OpenAIToolConverter] = None
+    ) -> None:
         """
         Initialize the OpenAI client.
         
@@ -55,10 +61,18 @@ class OpenAIClient(BaseLLMClient):
             config (LLMConfig): Configuration object containing API settings
             session_id (Optional[str]): Session identifier for tracking and logging.
                                       If not provided, defaults to "unknown"
+            tool_converter (Optional[OpenAIToolConverter]): Tool converter instance.
+                                                          If not provided, a new instance will be created.
         """
-        super().__init__(config, session_id)
+        # Create default tool converter if not provided
+        if tool_converter is None:
+            tool_converter = OpenAIToolConverter()
+            
+        super().__init__(config, tool_converter, session_id)
+        
         if not config.base_url:
             raise LLMConfigurationError("OpenAI client requires base_url configuration")
+            
         self.session: Optional[aiohttp.ClientSession] = None
         logger.info(f"Session {self.session_id}: Initialized OpenAI client with base URL: {config.base_url}")
     
@@ -92,33 +106,26 @@ class OpenAIClient(BaseLLMClient):
             await self.session.close()
             logger.debug(f"Session {self.session_id}: Closed HTTP session")
     
-    def _convert_mcp_tools_to_openai(self, mcp_tools: List[Dict]) -> List[Dict]:
+    def _prepare_tools(self, tools: Optional[List[Dict]]) -> Optional[List[Dict]]:
         """
-        Convert MCP tools format to OpenAI tools format.
+        Prepare tools for API request using the tool converter.
         
         Args:
-            mcp_tools (List[Dict]): Tools in MCP format
+            tools (Optional[List[Dict]]): Tools in MCP format
             
         Returns:
-            List[Dict]: Tools in OpenAI format
+            Optional[List[Dict]]: Tools in OpenAI format, or None if no tools provided
         """
-        if not mcp_tools:
-            return []
+        if not tools or not self.tool_converter:
+            return None
             
-        openai_tools = []
-        for tool in mcp_tools:
-            openai_tool = {
-                "type": "function",
-                "function": {
-                    "name": tool["name"],
-                    "description": tool["description"],
-                    "parameters": tool["inputSchema"]
-                }
-            }
-            openai_tools.append(openai_tool)
-            
-        logger.debug(f"Session {self.session_id}: Converted {len(mcp_tools)} MCP tools to OpenAI format")
-        return openai_tools
+        try:
+            converted_tools = self.tool_converter.convert_tools(tools)
+            logger.debug(f"Session {self.session_id}: Converted {len(tools)} tools to OpenAI format")
+            return converted_tools
+        except Exception as e:
+            logger.error(f"Session {self.session_id}: Failed to convert tools: {e}")
+            return None
     
     async def chat_completion(
         self, 
@@ -153,10 +160,8 @@ class OpenAIClient(BaseLLMClient):
         """
         await self._ensure_session()
         
-        # Convert MCP tools to OpenAI format if provided
-        openai_tools = None
-        if tools:
-            openai_tools = self._convert_mcp_tools_to_openai(tools)
+        # Convert tools using the tool converter if provided
+        openai_tools = self._prepare_tools(tools) if tools else None
         
         # Build request payload
         request_data = {

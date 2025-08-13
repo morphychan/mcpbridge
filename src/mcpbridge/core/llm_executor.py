@@ -60,13 +60,27 @@ class LLMExecutor:
         try:
             # Load configuration and create appropriate client
             config = LLMConfig()
+            
+            # Create client with tool converter from config
             if config.provider == LLMProvider.OPENAI:
-                self._client = OpenAIClient(config, session_id=self._session_id)
+                self._client = OpenAIClient(
+                    config=config,
+                    session_id=self._session_id,
+                    tool_converter=config.tool_converter
+                )
             elif config.provider == LLMProvider.GEMINI:
-                self._client = GeminiClient(config, session_id=self._session_id)
+                self._client = GeminiClient(
+                    config=config,
+                    session_id=self._session_id,
+                    tool_converter=config.tool_converter
+                )
             else:
                 raise LLMConfigurationError(f"Unsupported LLM provider: {config.provider}")
-            logger.info(f"Session {self._session_id}: LLM client initialized for provider {config.provider.value}")
+                
+            logger.info(
+                f"Session {self._session_id}: LLM client initialized for provider {config.provider.value} "
+                f"with tools {'enabled' if config.tools_enabled else 'disabled'}"
+            )
         except LLMConfigurationError as e:
             logger.warning(f"Session {self._session_id}: LLM configuration error: {e}")
             self._client = None  # Ensure client is None on failure
@@ -74,7 +88,7 @@ class LLMExecutor:
     async def get_completion(
         self,
         conv: Conversation,
-        tools: List[Dict[str, Any]]
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Get a completion from the LLM.
@@ -85,7 +99,8 @@ class LLMExecutor:
         
         Args:
             conv (Conversation): The conversation object containing message history
-            tools (List[Dict[str, Any]]): List of available tools/functions that can be called
+            tools (Optional[List[Dict[str, Any]]]): List of available tools/functions that can be called.
+                                                   If None, no tools will be provided even if enabled.
             
         Returns:
             Optional[Dict[str, Any]]: The LLM response as a dictionary, or None if the
@@ -94,6 +109,10 @@ class LLMExecutor:
         Note:
             The response format depends on the underlying LLM client implementation.
             Typically includes fields like 'content', 'tool_calls', etc.
+            
+            If tools are provided and enabled in configuration:
+            - OpenAI format will include 'tool_calls' in the response
+            - Gemini format will include 'function_call' in the response
         """
         # Ensure client is initialized before making requests
         self._initialize_client()
@@ -103,12 +122,31 @@ class LLMExecutor:
 
         try:
             logger.info(f"Session {self._session_id}: Sending request to LLM")
+            # Get configuration
+            config = LLMConfig()
+            
+            # Only send tools if enabled and provided
+            tools_to_send = tools if config.tools_enabled and tools else None
+            
             # Send the conversation and tools to the LLM
             response = await self._client.chat_completion(
                 messages=conv.get_messages(),
-                tools=tools
+                tools=tools_to_send
             )
-            logger.info(f"Session {self._session_id}: LLM response received.")
+            
+            # Log response details
+            if tools_to_send:
+                tool_call_info = (
+                    "tool_calls" if "tool_calls" in response
+                    else "function_call" if "function_call" in response
+                    else None
+                )
+                if tool_call_info:
+                    logger.info(f"Session {self._session_id}: LLM response received with {tool_call_info}")
+                else:
+                    logger.info(f"Session {self._session_id}: LLM response received without tool calls")
+            else:
+                logger.info(f"Session {self._session_id}: LLM response received")
             return response
         except LLMError as e:
             # Handle LLM-specific errors (e.g., API errors, rate limits)

@@ -8,9 +8,14 @@ providing a common interface that all LLM implementations must follow.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Type
 
 from mcpbridge.llm.config import LLMConfig
+from mcpbridge.llm.tools.base import IToolConverter
+from mcpbridge.utils.logging import get_mcpbridge_logger
+
+# Get configured logger for this module
+logger = get_mcpbridge_logger(__name__)
 
 
 class BaseLLMClient(ABC):
@@ -26,16 +31,24 @@ class BaseLLMClient(ABC):
         session_id (str): Session identifier for tracking and logging
     """
     
-    def __init__(self, config: LLMConfig, session_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        config: LLMConfig,
+        tool_converter: Optional[IToolConverter] = None,
+        session_id: Optional[str] = None
+    ) -> None:
         """
         Initialize the base LLM client.
         
         Args:
             config (LLMConfig): Configuration object containing API settings
+            tool_converter (Optional[IToolConverter]): Tool converter instance
             session_id (Optional[str]): Session identifier for tracking and logging
         """
         self.config = config
+        self.tool_converter = tool_converter
         self.session_id = session_id or "unknown"
+        logger.info(f"Session {self.session_id}: Initialized LLM client with tool converter: {tool_converter.__class__.__name__ if tool_converter else 'None'}")
     
     @abstractmethod
     async def __aenter__(self):

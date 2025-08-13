@@ -27,6 +27,7 @@ from mcpbridge.llm.exceptions import (
     LLMTokenLimitError,
     LLMConfigurationError,
 )
+from mcpbridge.llm.tools.gemini import GeminiToolConverter
 from mcpbridge.utils.logging import get_mcpbridge_logger
 
 # Get configured logger for this module
@@ -48,15 +49,27 @@ class GeminiClient(BaseLLMClient):
         credentials: Google Cloud credentials
     """
     
-    def __init__(self, config: LLMConfig, session_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        config: LLMConfig,
+        session_id: Optional[str] = None,
+        tool_converter: Optional[GeminiToolConverter] = None
+    ) -> None:
         """
         Initialize the Gemini client.
         
         Args:
             config (LLMConfig): Configuration object containing API settings
             session_id (Optional[str]): Session identifier for tracking and logging
+            tool_converter (Optional[GeminiToolConverter]): Tool converter instance.
+                                                          If not provided, a new instance will be created.
         """
-        super().__init__(config, session_id)
+        # Create default tool converter if not provided
+        if tool_converter is None:
+            tool_converter = GeminiToolConverter()
+            
+        super().__init__(config, tool_converter, session_id)
+        
         self.session: Optional[aiohttp.ClientSession] = None
         self.api_endpoint = "https://generativelanguage.googleapis.com/v1"
         logger.info(f"Session {self.session_id}: Initialized Gemini client")
@@ -130,30 +143,26 @@ class GeminiClient(BaseLLMClient):
         logger.warning(f"Unexpected message format: {type(messages)}")
         return []
     
-    def _convert_tools_to_gemini_format(self, tools: str) -> List[Dict[str, Any]]:
+    def _prepare_tools(self, tools: Optional[List[Dict]]) -> Optional[Any]:
         """
-        Convert MCP tools format to Gemini format.
+        Prepare tools for API request using the tool converter.
         
         Args:
-            tools (str): Tools in MCP format
+            tools (Optional[List[Dict]]): Tools in MCP format
             
         Returns:
-            List[Dict[str, Any]]: Tools in Gemini format
+            Optional[Any]: Tools in Gemini format, or None if no tools provided
         """
-        if not tools:
-            return []
+        if not tools or not self.tool_converter:
+            return None
             
-        gemini_tools = []
-        for tool in tools:
-            gemini_tool = {
-                "name": tool["name"],
-                "description": tool["description"],
-                "parameters": tool["inputSchema"]
-            }
-            gemini_tools.append(gemini_tool)
-            
-        logger.debug(f"Session {self.session_id}: Converted {len(tools)} MCP tools to Gemini format")
-        return gemini_tools
+        try:
+            converted_tools = self.tool_converter.convert_tools(tools)
+            logger.debug(f"Session {self.session_id}: Converted {len(tools)} tools to Gemini format")
+            return converted_tools
+        except Exception as e:
+            logger.error(f"Session {self.session_id}: Failed to convert tools: {e}")
+            return None
     
     async def chat_completion(
         self, 
@@ -202,9 +211,10 @@ class GeminiClient(BaseLLMClient):
             }
         }
         
-        # Add tools if provided
-        if tools:
-            request_data["tools"] = self._convert_tools_to_gemini_format(tools)
+        # Convert tools using the tool converter if provided
+        gemini_tools = self._prepare_tools(tools)
+        if gemini_tools:
+            request_data["tools"] = gemini_tools
         
         # Add any additional parameters
         if kwargs:
